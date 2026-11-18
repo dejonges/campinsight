@@ -1,0 +1,72 @@
+name: Dashboard publiceren
+
+on:
+  schedule:
+    - cron: "23 5 * * *"   # dagelijks rond 6u/7u Belgische tijd
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Controleer instellingen
+        env:
+          PW: ${{ secrets.DASHBOARD_PASSWORD }}
+          TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+        run: |
+          if [ -z "$PW" ]; then echo "::error::Secret DASHBOARD_PASSWORD ontbreekt"; exit 1; fi
+          if [ -z "$TOKEN" ]; then echo "::error::Secret DATA_REPO_TOKEN ontbreekt"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - name: Haal de private data op
+        uses: actions/checkout@v4
+        with:
+          repository: dejonges/aquarea-warmtepomp-data
+          token: ${{ secrets.DATA_REPO_TOKEN }}
+          path: data-repo
+
+      - name: Bouw de pagina (onversleuteld, blijft buiten de site-map)
+        run: python3 data-repo/scripts/build_static.py "$RUNNER_TEMP/plain/index.html" > /dev/null
+
+      - name: Versleutel met wachtwoord
+        env:
+          STATICRYPT_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+        run: |
+          npx --yes staticrypt@3.5.4 "$RUNNER_TEMP/plain/index.html" \
+            -d site --short --remember 30 \
+            --salt "$(cat staticrypt-salt.txt)" \
+            --template-title "Aquarea warmtepomp" \
+            --template-instructions "Voer het wachtwoord in om het dashboard te bekijken." \
+            --template-placeholder "Wachtwoord" \
+            --template-button "Openen" \
+            --template-remember "Onthoud mij 30 dagen" \
+            --template-error "Verkeerd wachtwoord" \
+            --template-color-primary "#2f6fd6" --template-color-secondary "#f6f7f9" > /dev/null
+          rm -rf "$RUNNER_TEMP/plain" data-repo
+          test -f site/index.html
+          if grep -q "aq-data" site/index.html; then echo "::error::Pagina lijkt niet versleuteld"; exit 1; fi
+          touch site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
