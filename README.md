@@ -1,6 +1,6 @@
-# Warmtepomp-dashboard
+# CampinSight
 
-Met een wachtwoord beveiligd dashboard van de Panasonic Aquarea-warmtepomp.
+Met een wachtwoord beveiligd dashboard CampinSight: de Panasonic Aquarea-warmtepomp, de EcoWater-ontharder en later nog andere toestellen.
 De data zelf staat in de private repo `aquarea-warmtepomp-data`; deze publieke repo
 bevat alleen de publicatie-workflow. De pagina wordt met [StatiCrypt](https://github.com/robinmoisson/staticrypt)
 (AES-256) versleuteld voordat ze online komt; zonder wachtwoord is de inhoud onleesbaar.

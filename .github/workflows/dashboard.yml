@@ -45,7 +45,7 @@ jobs:
           npx --yes staticrypt@3.5.4 "$RUNNER_TEMP/plain/index.html" \
             -d site --short --remember 30 \
             --salt "$(cat staticrypt-salt.txt)" \
-            --template-title "Aquarea warmtepomp" \
+            --template-title "CampinSight" \
             --template-instructions "Voer het wachtwoord in om het dashboard te bekijken." \
             --template-placeholder "Wachtwoord" \
             --template-button "Openen" \
