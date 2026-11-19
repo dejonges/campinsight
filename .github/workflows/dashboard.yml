@@ -36,11 +36,17 @@ jobs:
           path: data-repo
 
       - name: Bouw de pagina (onversleuteld, blijft buiten de site-map)
+        env:
+          # Optioneel: fine-grained token met enkel "Actions: Read and write" op
+          # dejonges/aquarea-warmtepomp-data. Komt enkel in de versleutelde pagina, zodat de
+          # knop "Data nu ophalen" de export rechtstreeks kan starten.
+          EXPORT_TRIGGER_TOKEN: ${{ secrets.EXPORT_TRIGGER_TOKEN }}
         run: python3 data-repo/scripts/build_static.py "$RUNNER_TEMP/plain/index.html" > /dev/null
 
       - name: Versleutel met wachtwoord
         env:
           STATICRYPT_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+          EXPORT_TRIGGER_TOKEN: ${{ secrets.EXPORT_TRIGGER_TOKEN }}
         run: |
           npx --yes staticrypt@3.5.4 "$RUNNER_TEMP/plain/index.html" \
             -d site --short --remember 30 \
@@ -55,6 +61,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/plain" data-repo
           test -f site/index.html
           if grep -q "aq-data" site/index.html; then echo "::error::Pagina lijkt niet versleuteld"; exit 1; fi
+          if [ -n "$EXPORT_TRIGGER_TOKEN" ] && grep -rqF "$EXPORT_TRIGGER_TOKEN" site; then echo "::error::Token staat onversleuteld in de site"; exit 1; fi
           touch site/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
