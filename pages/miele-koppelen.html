@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Miele koppelen</title>
+<style>
+  :root { --fg: #1d2330; --muted: #5d6676; --bg: #f6f7f9; --panel: #fff; --line: #e1e4ea; --accent: #2f6fd6; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e7eaf0; --muted: #9aa3b2; --bg: #12151b; --panel: #1a1e26; --line: #2c323d; --accent: #6aa2ff; color-scheme: dark; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 40px 16px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-weight: 500; font-size: 26px; margin: 0; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  code { font-size: 14px; word-break: break-all; flex: 1 1 260px; }
+  button, a.btn { font: inherit; font-weight: 600; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none; }
+  a.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  ol { margin: 0; padding-left: 1.2em; } p { margin: 0; } .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Miele koppelen</h1>
+  <p id="msg">Geen code gevonden in de adresbalk. Open eerst de Miele-loginlink.</p>
+  <div class="box" id="box" hidden><code id="code"></code><button type="button" id="copy">Kopieer</button></div>
+  <ol id="steps" hidden>
+    <li>Kopieer de code hierboven.</li>
+    <li>Open de workflow <a class="btn primary" href="https://github.com/dejonges/campinsight/actions/workflows/miele-koppelen.yml" target="_blank" rel="noopener">Miele koppelen ↗</a></li>
+    <li>Klik op <b>Run workflow</b>, plak de code en klik op de groene knop. Doe dit binnen enkele minuten: de code verloopt snel.</li>
+  </ol>
+  <p class="muted">Deze pagina stuurt niets door; de code wordt enkel hier getoond. Ze is zonder het geheime client secret onbruikbaar.</p>
+</main>
+<script>
+  const q = new URLSearchParams(location.search);
+  const code = q.get('code'), err = q.get('error');
+  const msg = document.getElementById('msg');
+  if (err) msg.textContent = 'Miele gaf een fout terug: ' + err + (q.get('error_description') ? ' (' + q.get('error_description') + ')' : '') + '.';
+  else if (code) {
+    msg.textContent = 'Gelukt, Miele gaf een code terug.';
+    document.getElementById('code').textContent = code;
+    document.getElementById('box').hidden = false;
+    document.getElementById('steps').hidden = false;
+    document.getElementById('copy').addEventListener('click', async (e) => {
+      try { await navigator.clipboard.writeText(code); e.target.textContent = 'Gekopieerd'; } catch (x) { e.target.textContent = 'Selecteer en kopieer manueel'; }
+    });
+    history.replaceState(null, '', location.pathname);
+  }
+</script>
+</body>
+</html>

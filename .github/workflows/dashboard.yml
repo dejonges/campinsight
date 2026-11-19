@@ -63,6 +63,8 @@ jobs:
           if grep -q "aq-data" site/index.html; then echo "::error::Pagina lijkt niet versleuteld"; exit 1; fi
           if [ -n "$EXPORT_TRIGGER_TOKEN" ] && grep -rqF "$EXPORT_TRIGGER_TOKEN" site; then echo "::error::Token staat onversleuteld in de site"; exit 1; fi
           touch site/.nojekyll
+          # Onversleutelde koppelpagina voor Miele (bevat geen data, toont enkel de OAuth-code).
+          mkdir -p site/miele && cp pages/miele-koppelen.html site/miele/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,0 +1,86 @@
+name: Miele
+
+# Leest elke ~5 minuten de toestand van de Miele-toestellen (Miele 3rd Party API) en bewaart
+# enkel de gewijzigde waarden in de private data-repo (data/miele/). Draait in deze publieke repo
+# omdat Actions-minuten hier gratis zijn; de log toont geen waarden, enkel aantallen.
+# Bij een wijziging wordt de beveiligde site herbouwd, zodat de Miele-tab actueel blijft.
+#
+# Secrets (in te stellen door de eigenaar):
+#   MIELE_CLIENT_ID, MIELE_CLIENT_SECRET   van developer.miele.com
+#   MIELE_TOKEN_KEY                        zelfgekozen lang wachtwoord (versleutelt de tokens)
+#   DATA_REPO_TOKEN                        bestaand, heeft "Contents: Read and write" nodig
+# Eenmalig vooraf: workflow "Miele koppelen".
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: miele
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MIELE_CLIENT_ID: ${{ secrets.MIELE_CLIENT_ID }}
+      MIELE_CLIENT_SECRET: ${{ secrets.MIELE_CLIENT_SECRET }}
+      MIELE_TOKEN_KEY: ${{ secrets.MIELE_TOKEN_KEY }}
+      TZ: Europe/Brussels
+    steps:
+      - name: Controleer instellingen
+        id: check
+        run: |
+          if [ -z "$MIELE_CLIENT_ID" ] || [ -z "$MIELE_CLIENT_SECRET" ] || [ -z "$MIELE_TOKEN_KEY" ]; then
+            echo "::warning::Miele-secrets ontbreken nog, overgeslagen."; echo "ok=nee" >> "$GITHUB_OUTPUT"
+          else echo "ok=ja" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Haal de private data op
+        if: steps.check.outputs.ok == 'ja'
+        uses: actions/checkout@v4
+        with:
+          repository: dejonges/aquarea-warmtepomp-data
+          token: ${{ secrets.DATA_REPO_TOKEN }}
+          path: data-repo
+          sparse-checkout: |
+            scripts
+            data/miele
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.ok == 'ja'
+        with:
+          python-version: "3.12"
+
+      - if: steps.check.outputs.ok == 'ja'
+        run: pip install -q requests==2.32.3
+
+      - name: Toestellen lezen
+        id: poll
+        if: steps.check.outputs.ok == 'ja'
+        working-directory: data-repo
+        run: python3 scripts/miele.py poll || [ $? -eq 2 ]
+
+      - name: Commit en push
+        id: push
+        if: steps.check.outputs.ok == 'ja'
+        working-directory: data-repo
+        run: |
+          git add data/miele
+          if git diff --cached --quiet; then echo "Niets gewijzigd."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "Miele: ${{ steps.poll.outputs.wijzigingen || 0 }} wijziging(en)"
+          for i in 1 2 3 4; do git pull -q --rebase && git push -q && echo "changed=ja" >> "$GITHUB_OUTPUT" && exit 0; sleep $((i * 5)); done
+          echo "::error::Pushen naar de data-repo mislukt (heeft DATA_REPO_TOKEN schrijfrechten?)"; exit 1
+
+      - name: Beveiligde site herbouwen
+        if: steps.push.outputs.changed == 'ja' && steps.poll.outputs.wijzigingen != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run dashboard.yml -R "$GITHUB_REPOSITORY"
