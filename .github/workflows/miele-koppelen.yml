@@ -1,0 +1,71 @@
+name: Miele koppelen
+
+# Eenmalig (of als de koppeling verlopen is): wisselt de code uit de Miele-login in voor tokens
+# en bewaart die versleuteld in de private data-repo (data/miele/token.enc).
+# 1. Open de Miele-loginlink (staat in de projectthread), log in en geef toestemming.
+# 2. Je komt op https://dejonges.github.io/campinsight/miele/ met de code: kopieer die.
+# 3. Start deze workflow binnen enkele minuten en plak de code.
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "Code van de koppelpagina (enkele minuten geldig, eenmalig bruikbaar)"
+        required: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: miele
+  cancel-in-progress: false
+
+jobs:
+  koppel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MIELE_CLIENT_ID: ${{ secrets.MIELE_CLIENT_ID }}
+      MIELE_CLIENT_SECRET: ${{ secrets.MIELE_CLIENT_SECRET }}
+      MIELE_TOKEN_KEY: ${{ secrets.MIELE_TOKEN_KEY }}
+      MIELE_CODE: ${{ inputs.code }}
+      TZ: Europe/Brussels
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dejonges/aquarea-warmtepomp-data
+          token: ${{ secrets.DATA_REPO_TOKEN }}
+          path: data-repo
+          sparse-checkout: |
+            scripts
+            data/miele
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -q requests==2.32.3
+
+      - name: Code inwisselen
+        working-directory: data-repo
+        run: python3 scripts/miele.py koppel
+
+      - name: Eerste meting
+        working-directory: data-repo
+        run: python3 scripts/miele.py poll
+
+      - name: Commit en push
+        working-directory: data-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/miele
+          git commit -q -m "Miele gekoppeld"
+          for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep $((i * 5)); done
+          echo "::error::Pushen naar de data-repo mislukt (heeft DATA_REPO_TOKEN schrijfrechten?)"; exit 1
+
+      - name: Beveiligde site herbouwen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run dashboard.yml -R "$GITHUB_REPOSITORY"
